@@ -1,10 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
+// MongoDB types for LinkHub
 export type Profile = {
   id: string;
   username: string;
@@ -25,4 +19,14 @@ export type Link = {
   is_active: boolean;
   icon: string;
   created_at: string;
+};
+
+export type User = {
+  id: string;
+  email: string;
+  username: string;
+  display_name: string;
+  bio: string;
+  avatar_url: string;
+  theme_color: string;
 };

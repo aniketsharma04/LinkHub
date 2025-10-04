@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Link2, CircleAlert as AlertCircle, CircleCheck as CheckCircle2 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { api } from '@/lib/api';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export default function SignupPage() {
@@ -39,37 +39,9 @@ export default function SignupPage() {
     }
 
     try {
-      const { data: existingProfile } = await supabase
-        .from('profiles')
-        .select('username')
-        .eq('username', username)
-        .maybeSingle();
+      const result = await api.register(email, password, username.toLowerCase());
 
-      if (existingProfile) {
-        setError('Username is already taken');
-        setLoading(false);
-        return;
-      }
-
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-      });
-
-      if (signUpError) throw signUpError;
-
-      if (data.user) {
-        const { error: profileError } = await supabase.from('profiles').insert({
-          id: data.user.id,
-          username: username.toLowerCase(),
-          display_name: '',
-          bio: '',
-          avatar_url: '',
-          theme_color: '#10b981',
-        });
-
-        if (profileError) throw profileError;
-
+      if (result.user) {
         setSuccess(true);
         setTimeout(() => {
           router.push('/dashboard');

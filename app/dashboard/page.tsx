@@ -8,13 +8,14 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Link2, Plus, GripVertical, Trash2, Eye, LogOut, Settings, ExternalLink } from 'lucide-react';
-import { supabase, Profile, Link as LinkType } from '@/lib/supabase';
+import { Profile, Link as LinkType, User } from '@/lib/supabase';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Switch } from '@/components/ui/switch';
+import { api } from '@/lib/api';
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profile, setProfile] = useState<User | null>(null);
   const [links, setLinks] = useState<LinkType[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -25,85 +26,79 @@ export default function DashboardPage() {
   }, []);
 
   const checkUser = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
+    try {
+      const { user } = await api.getCurrentUser();
+      if (user) {
+        setProfile(user);
+        await loadLinks();
+      }
+    } catch (error) {
+      // User not authenticated, redirect to login
       router.push('/login');
       return;
-    }
-
-    const { data: profileData } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single();
-
-    if (profileData) {
-      setProfile(profileData);
-      loadLinks(profileData.id);
     }
     setLoading(false);
   };
 
-  const loadLinks = async (profileId: string) => {
-    const { data } = await supabase
-      .from('links')
-      .select('*')
-      .eq('profile_id', profileId)
-      .order('position', { ascending: true });
-
-    if (data) {
-      setLinks(data);
+  const loadLinks = async () => {
+    try {
+      const { links } = await api.getLinks();
+      setLinks(links);
+    } catch (error) {
+      console.error('Failed to load links:', error);
     }
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    router.push('/');
+    try {
+      await api.logout();
+      router.push('/');
+    } catch (error) {
+      console.error('Logout failed:', error);
+      // Force redirect anyway
+      router.push('/');
+    }
   };
 
   const addLink = async () => {
     if (!profile) return;
 
-    const newLink = {
-      profile_id: profile.id,
-      title: 'New Link',
-      url: 'https://',
-      position: links.length,
-      is_active: true,
-      icon: '',
-    };
+    try {
+      console.log('Attempting to add link...');
+      const { link } = await api.createLink({
+        title: 'New Link',
+        url: 'https://',
+        position: links.length,
+        is_active: true,
+        icon: '',
+      });
 
-    const { data, error } = await supabase
-      .from('links')
-      .insert(newLink)
-      .select()
-      .single();
-
-    if (data) {
-      setLinks([...links, data]);
+      console.log('Link created successfully:', link);
+      setLinks([...links, link]);
+      setMessage('Link added successfully!');
+      setTimeout(() => setMessage(''), 3000);
+    } catch (error) {
+      console.error('Failed to add link:', error);
+      setMessage('Failed to add link. Please try again.');
+      setTimeout(() => setMessage(''), 3000);
     }
   };
 
   const updateLink = async (id: string, updates: Partial<LinkType>) => {
-    const { error } = await supabase
-      .from('links')
-      .update(updates)
-      .eq('id', id);
-
-    if (!error) {
+    try {
+      await api.updateLink(id, updates);
       setLinks(links.map(link => link.id === id ? { ...link, ...updates } : link));
+    } catch (error) {
+      console.error('Failed to update link:', error);
     }
   };
 
   const deleteLink = async (id: string) => {
-    const { error } = await supabase
-      .from('links')
-      .delete()
-      .eq('id', id);
-
-    if (!error) {
+    try {
+      await api.deleteLink(id);
       setLinks(links.filter(link => link.id !== id));
+    } catch (error) {
+      console.error('Failed to delete link:', error);
     }
   };
 
@@ -111,21 +106,22 @@ export default function DashboardPage() {
     if (!profile) return;
     setSaving(true);
 
-    const { error } = await supabase
-      .from('profiles')
-      .update({
+    try {
+      await api.updateProfile({
         display_name: profile.display_name,
         bio: profile.bio,
         theme_color: profile.theme_color,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', profile.id);
-
-    setSaving(false);
-    if (!error) {
+      });
+      
       setMessage('Profile saved successfully!');
       setTimeout(() => setMessage(''), 3000);
+    } catch (error) {
+      console.error('Failed to save profile:', error);
+      setMessage('Failed to save profile');
+      setTimeout(() => setMessage(''), 3000);
     }
+    
+    setSaving(false);
   };
 
   if (loading) {
